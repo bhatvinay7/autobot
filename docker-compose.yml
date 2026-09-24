@@ -1,0 +1,47 @@
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - "4000:4000"
+    env_file:
+      - apps/api/.env
+  ingestion:
+    build:
+      context: .
+      dockerfile: apps/ingestion/Dockerfile
+    ports:
+      - "3001:3000"
+    env_file:
+      - apps/ingestion/.env
+
+  bot:
+    build:
+      context: .
+      dockerfile: apps/bot/Dockerfile
+    ports:
+      - "3002:3000"
+    env_file:
+      - apps/bot/.env
+
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: apps/dashboard/Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - apps/dashboard/.env
+ 
+
+  monitor:
+    build:
+      context: .
+      dockerfile: apps/monitor/Dockerfile
+    ports:
+      - "3003:3003"
+    env_file:
+      - apps/monitor/.env

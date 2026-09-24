@@ -1,0 +1,41 @@
+{
+  "name": "automate",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "check-types": "turbo run check-types",
+    "db:generate": "turbo run db:generate",
+    "db:push": "bun run --filter=db db:push"
+  },
+  "devDependencies": {
+    "prettier": "3.9.6",
+    "turbo": "^2.11.3",
+    "typescript": "^5.5.4"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "bun",
+      "version": "1.1.0"
+    }
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "overrides": {
+    "postcss": ">=8.5.23"
+  },
+  "allowScripts": {
+    "@prisma/client@6.6.0": true,
+    "prisma@6.6.0": true,
+    "@prisma/engines@6.6.0": true,
+    "esbuild@0.28.2": true,
+    "sharp@0.34.5": true
+  }
+}

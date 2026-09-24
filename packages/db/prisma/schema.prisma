@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+model Interaction {
+  id             String   @id @default(cuid())
+  interactionId  String   @unique // Discord interaction ID (for deduplication)
+  guildId        String?
+  channelId      String?
+  userId         String
+  username       String
+  commandName    String
+  commandOptions Json     @default("[]")
+  status         InteractionStatus @default(PENDING)
+  receivedAt     DateTime @default(now())
+  processedAt    DateTime?
+  aiSummary      String?
+  aiTags         String[] @default([])
+  actions        Action[]
+
+  @@index([guildId])
+  @@index([userId])
+  @@index([commandName])
+  @@index([receivedAt])
+  @@index([status])
+}
+
+enum InteractionStatus {
+  PENDING
+  PROCESSED
+  FAILED
+  DEDUPLICATED
+}
+
+
+model Action {
+  id               String   @id @default(cuid())
+  interactionDbId  String
+  interaction      Interaction @relation(fields: [interactionDbId], references: [id])
+  type             ActionType
+  status           ActionStatus @default(RETRYING)
+  payload          Json
+  retryCount       Int      @default(0)
+  error            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([interactionDbId])
+  @@index([status])
+}
+
+enum ActionType {
+  BOT_REPLY
+  MIRROR_SLACK
+  MIRROR_DISCORD
+  AI_TAG
+}
+
+enum ActionStatus {
+  SUCCESS
+  FAILED
+  RETRYING
+  DLQ
+}
+
+
+model CommandConfig {
+  id             String   @id @default(cuid())
+  guildId        String
+  commandName    String
+  isEnabled      Boolean  @default(true)
+  mirrorEnabled  Boolean  @default(true)
+  aiEnabled      Boolean  @default(false)
+  customResponse String?
+  updatedAt      DateTime @updatedAt
+
+  @@unique([guildId, commandName])
+  @@index([guildId])
+}
+
+
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  sessions     AdminSession[]
+}
+
+model AdminSession {
+  id        String   @id @default(cuid())
+  userId    String
+  user      AdminUser @relation(fields: [userId], references: [id])
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+}
