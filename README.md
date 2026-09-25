@@ -11,7 +11,7 @@ A production-grade Discord bot interaction system built with Next.js, TypeScript
                         │ HTTPS POST
                         ▼
           ┌─────────────────────────┐
-          │   apps/ingestion        │  ← Vercel (Serverless)
+          │   apps/ingestion        │  ← Express API (Vercel Container)
           │   Verify Ed25519 sig    │
           │   Dedup + store token   │
           │   ACK (type 5) <3s      │
@@ -21,24 +21,27 @@ A production-grade Discord bot interaction system built with Next.js, TypeScript
                        │ Async Fetch Trigger
                        ▼
           ┌─────────────────────────┐
-          │   apps/bot              │  ← Vercel (Serverless Lambda)
-          │   1 Lambda per Channel  │
-          │   Runs up to 60s        │
-          │   LRU User Sessions     │
+          │   apps/bot              │  ← Express API (Vercel Container)
+          │   Event-driven worker   │
+          │   Async message process │
           │   AI context enrichment │
           │   DB Batch Writer       │
           └────────────┬────────────┘
                        │ Redis Pub/Sub & Capped List
           ┌────────────▼────────────┐
-          │   apps/dashboard        │  ← Vercel (Serverless)
+          │   apps/dashboard        │  ← Next.js (Vercel Serverless)
           │   Admin login (JWT)     │
           │   Live SSE interaction  │
           │   log (Redis cached)    │
           └─────────────────────────┘
           ┌─────────────────────────┐
-          │   apps/monitor          │  ← Vercel (Serverless)
+          │   apps/api              │  ← Express API (Vercel Container)
           │   /api/health           │
-          │   Redis + DB checks     │
+          │   Auth & Config routes  │
+          └─────────────────────────┘
+          ┌─────────────────────────┐
+          │   apps/monitor          │  ← Next.js (Vercel Serverless)
+          │   Status UI             │
           └─────────────────────────┘
 ```
 
@@ -61,7 +64,8 @@ automate/
 
 ### Prerequisites
 - Node.js >= 24
-- npm >= 11
+- Bun >= 1.3
+
 - A running Redis instance (Upstash, local Docker, etc.)
 - A Neon Postgres connection string
 
@@ -90,20 +94,22 @@ Services will start at:
 - **Bot Worker**: http://localhost:3002/api/worker
 - **Monitor**: http://localhost:3003/api/health
 
-### Running Locally (Native Node.js)
+### Running Locally (Native Bun)
 
 Alternatively, you can run the services natively:
 
 ```bash
 # Install dependencies
-npm install
+bun install
 
-# Generate Prisma client and push schema
-npm run db:generate
-npm run db:push
+# Generate Prisma client
+bun run db:generate
+
+# Push schema if needed
+bun run db:push
 
 # Run all services concurrently
-npm run dev
+bun run dev
 ```
 
 ### Seed Admin User
@@ -121,18 +127,24 @@ node -e "require('bcryptjs').hash('yourpassword', 12).then(h => console.log(h))"
 
 See [`.env.example`](.env.example) for all required variables with documentation.
 
-## Deployment
+## Deployment (Vercel)
 
-Deploy each `apps/*` directory as a **separate Vercel project** from the same GitHub repository (Free Tier):
+This monorepo uses Vercel for hosting. Because some apps are standard Express servers (`bot`, `ingestion`, `api`) and others are Next.js (`dashboard`, `monitor`), they require different deployment strategies.
 
-| Vercel Project | Root Directory | URL used for |
-|---|---|---|
-| `automate-ingestion` | `apps/ingestion` | Discord Interactions Endpoint |
-| `automate-bot` | `apps/bot` | Serverless Actor Worker |
-| `automate-dashboard` | `apps/dashboard` | Admin UI & SSE Logs |
-| `automate-monitor` | `apps/monitor` | Health checks |
+**Crucial Deployment Settings for Express Apps (Docker/Container):**
+When deploying `apps/bot`, `apps/ingestion`, or `apps/api` to Vercel using the "Container" option, you MUST:
+1. Set the **Root Directory** to `/` (the root of the GitHub repository). *Do NOT set it to the app folder.*
+2. Set the **Dockerfile** path to the specific app (e.g., `apps/api/Dockerfile`). 
 
-Set all environment variables in each Vercel project's settings.
+*Why?* Turbo Prune runs from the Dockerfile and needs access to the entire monorepo context (`bun.lock`, root `package.json`, etc.) to correctly prune and build shared packages (`@repo/db`, etc.).
+
+| App | Type | Vercel Root Directory | Vercel Framework Preset |
+|---|---|---|---|
+| `dashboard` | Next.js | `apps/dashboard` | Next.js |
+| `monitor` | Next.js | `apps/monitor` | Next.js |
+| `api` | Express | `/` (repo root) | Docker/Container (`apps/api/Dockerfile`) |
+| `bot` | Express | `/` (repo root) | Docker/Container (`apps/bot/Dockerfile`) |
+| `ingestion` | Express | `/` (repo root) | Docker/Container (`apps/ingestion/Dockerfile`) |
 
 In the Discord Developer Portal, set your **Interactions Endpoint URL** to:
 ```
@@ -159,10 +171,11 @@ Register commands via the Discord Developer Portal or using the REST API:
 
 ## Tech Stack
 
-- **Framework**: Next.js 15 (App Router)
+- **Framework**: Express.js (backend), Next.js 15 (frontend)
 - **Language**: TypeScript (strict, no `any`)
+- **Package Manager**: Bun
 - **ORM**: Prisma 6.6.0
 - **Database**: Neon (Postgres)
 - **Queue**: Redis Streams via ioredis
 - **Auth**: JWT via `jose`
-- **Deployment**: Vercel Free Tier
+- **Deployment**: Vercel (Serverless & Containers)

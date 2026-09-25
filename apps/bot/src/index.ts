@@ -24,7 +24,7 @@ app.post("/api/worker", async (req: Request, res: Response) => {
     return;
   }
 
-  console.log(`[worker] Starting lambda for channel: ${channelId}`);
+  console.log(`[worker] Starting worker task for channel: ${channelId}`);
 
   await Promise.all([
     ensureConsumerGroup("interactions", channelId),
@@ -104,7 +104,7 @@ app.post("/api/worker", async (req: Request, res: Response) => {
   }
 
   // Cleanup: flush DB and remove lock
-  console.log(`[worker] Exiting lambda for channel: ${channelId} (idle: ${idleTime}ms, runtime: ${Date.now() - start}ms, pendingCount: ${writer.pendingCount})`);
+  console.log(`[worker] Exiting worker task for channel: ${channelId} (idle: ${idleTime}ms, runtime: ${Date.now() - start}ms, pendingCount: ${writer.pendingCount})`);
   if (writer.pendingCount > 0) {
     try {
       await writer.flush();
