@@ -1,5 +1,5 @@
 export { prisma } from "./client";
-export { Prisma, PrismaClient } from "@prisma/client";
+export { Prisma, PrismaClient } from "../generated/client";
 export type {
   Interaction,
   Action,
@@ -9,4 +9,4 @@ export type {
   InteractionStatus,
   ActionType,
   ActionStatus,
-} from "@prisma/client";
+} from "../generated/client";
