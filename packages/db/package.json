@@ -19,7 +19,7 @@
     }
   },
   "scripts": {
-    "build": "tsup",
+    "build": "bun run db:generate && tsup",
     "dev": "tsup --watch",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
