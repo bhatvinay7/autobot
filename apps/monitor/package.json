@@ -6,7 +6,7 @@
   "scripts": {
     "build:packages": "bun run --filter=@repo/types build && bun run --filter=@repo/db build && bun run --filter=@repo/redis build",
     "dev": "next dev --port 3003",
-    "build": "bun run build:packages && next build",
+    "build": "next build",
     "start": "next start --port 3003",
     "lint": "next lint",
     "check-types": "tsc --noEmit"

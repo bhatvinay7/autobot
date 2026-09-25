@@ -11,10 +11,9 @@ FROM base AS installer
 WORKDIR /app
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/bun.lockb* ./
-RUN bun install
+RUN bun install --ignore-scripts
 COPY --from=builder /app/out/full/ .
 COPY turbo.json turbo.json
-RUN bun run db:generate
 RUN bunx turbo run build --filter=bot...
 
 FROM base AS runner
