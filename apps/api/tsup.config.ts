@@ -5,5 +5,4 @@ export default defineConfig({
   format: ["cjs"],
   minify: true,
   clean: true,
-  noExternal: ["@repo/db", "@repo/redis", "@repo/types"],
 });

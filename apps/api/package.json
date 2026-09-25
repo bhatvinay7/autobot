@@ -6,7 +6,7 @@
   "scripts": {
     "build:packages": "bun run --filter=@repo/types build && bun run --filter=@repo/db build && bun run --filter=@repo/redis build",
     "dev": "tsx watch src/index.ts",
-    "build": "bun run build:packages && tsup",
+    "build": "bun run build:packages && tsup && cp ../../packages/db/generated/client/*.node dist/ || true",
     "start": "node dist/index.js"
   },
   "dependencies": {
