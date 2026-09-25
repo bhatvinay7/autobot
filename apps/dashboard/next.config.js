@@ -4,6 +4,7 @@ const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
   transpilePackages: ["@repo/ui"],
+  output: "export",
 };
 
 module.exports = nextConfig;
