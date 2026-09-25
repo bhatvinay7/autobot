@@ -228,7 +228,7 @@ async function runInteractionAi(
   session: UserSession
 ): Promise<AiResult> {
   const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return { summary: null, tags: [], updatedSessionSummary: null };
+  if (!apiKey) return { summary: null, answer: null, tags: [], updatedSessionSummary: null };
 
   try {
     const { redis } = await import("@repo/redis");
@@ -281,7 +281,7 @@ sessionSummary should incorporate context from the full session, not just this m
     if (!res.ok) {
       const errorText = await res.text().catch(() => "unknown");
       console.warn("[processor] AI fetch failed:", res.status, errorText);
-      return { summary: null, tags: [], updatedSessionSummary: null };
+      return { summary: null, answer: null, tags: [], updatedSessionSummary: null };
     }
 
     const data = await res.json() as any;
