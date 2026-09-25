@@ -191,7 +191,7 @@ export async function isDuplicate(interactionId: string): Promise<boolean> {
 // ─── Token TTL (Discord reply token, 15 min) ──────────────────────────────────
 
 const TOKEN_PREFIX = "token:interaction:";
-const TOKEN_TTL_SECONDS = 900; // 15 minutes
+const TOKEN_TTL_SECONDS = 840; // 14 minutes
 
 export async function storeInteractionToken(
   interactionId: string,

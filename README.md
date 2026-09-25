@@ -23,8 +23,10 @@ A production-grade Discord bot interaction system built with Next.js, TypeScript
           ┌─────────────────────────┐
           │   apps/bot              │  ← Express API (Vercel Container)
           │   Event-driven worker   │
-          │   Async message process │
+          │   Initial Discord ACK   │
           │   AI context enrichment │
+          │   Secondary AI Discord  │
+          │     follow-up message   │
           │   DB Batch Writer       │
           └────────────┬────────────┘
                        │ Redis Pub/Sub & Capped List
@@ -123,6 +125,15 @@ node -e "require('bcryptjs').hash('yourpassword', 12).then(h => console.log(h))"
 # VALUES (gen_random_uuid(), 'admin@example.com', '<hash>', now());
 ```
 
+### Seed Redis with Mock Data
+
+The AI relies on context data stored in Redis. You must run the seed script to populate `mock_movies_context`:
+
+```bash
+cd apps/bot
+bun run src/scripts/seed-movies.ts
+```
+
 ## Environment Variables
 
 See [`.env.example`](.env.example) for all required variables with documentation.
@@ -159,6 +170,7 @@ Register commands via the Discord Developer Portal or using the REST API:
 |---|---|
 | `/report <text>` | Submit a report |
 | `/status` | Check bot status |
+| `/ask prompt:<text>` | Ask a question (context-aware AI response) |
 
 ## Quality Guarantees
 
@@ -179,3 +191,8 @@ Register commands via the Discord Developer Portal or using the REST API:
 - **Queue**: Redis Streams via ioredis
 - **Auth**: JWT via `jose`
 - **Deployment**: Vercel (Serverless & Containers)
+
+## Important Operational Notes
+
+- **Alpine & SSL**: The `bot` container runs on `alpine`. Make sure `ca-certificates` are installed in the runner stage of the Dockerfile so that node/bun can securely connect to external AI APIs without `UNKNOWN_CERTIFICATE_VERIFICATION_ERROR`.
+- **Discord Follow-ups**: The bot uses a two-message architecture for interactions. It sends an instant `✅ /command received` follow-up to resolve the interaction, and then a second `🤖 AI Response:` follow-up message when the AI finishes its generation.

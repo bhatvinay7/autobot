@@ -84,10 +84,9 @@ export async function processInteractionEvent(
 
   // ── Step 1: Discord reply ─────────────────────────────────────────────────
   if (!isStepComplete(currentState, "discord_done")) {
-    // Include session context hint in the response
     const sessionHint =
       session.messageCount > 0 && session.recentSummary
-        ? `\n> *Continuing from: ${session.recentSummary}*`
+        ? `\n> *Context:* ${session.recentSummary}`
         : "";
 
     try {
@@ -110,7 +109,6 @@ export async function processInteractionEvent(
         ).catch((e: unknown) => console.warn("[processor] Mirror channel send failed:", e));
       }
     } catch (e: unknown) {
-      // Non-fatal: Discord token may be invalid/expired (e.g. local testing)
       console.warn("[processor] Discord follow-up failed (non-fatal):", e instanceof Error ? e.message : e);
       result.discordSent = false;
     }
@@ -125,7 +123,6 @@ export async function processInteractionEvent(
       await withRetry(() => sendSlackNotification(mirrorText), MAX_RETRIES);
       result.slackSent = true;
     } catch (e: unknown) {
-      // Non-fatal: Slack token may be unconfigured
       console.warn("[processor] Slack mirror failed (non-fatal):", e instanceof Error ? e.message : e);
       result.slackSent = false;
     }
@@ -134,7 +131,7 @@ export async function processInteractionEvent(
     result.slackSent = true;
   }
 
-  // ── Step 3: AI enrichment (uses + updates session) ───────────────────────
+  // ── Step 3: AI enrichment & Second Discord Message ───────────────────────
   let aiSummary: string | null = null;
   let aiTags: string[] = [];
 
@@ -143,11 +140,25 @@ export async function processInteractionEvent(
     aiSummary = aiResult.summary;
     aiTags = aiResult.tags;
 
-    // Update session with new message + rolling summary, save back to Redis
+    if (aiResult.answer) {
+      try {
+        await withRetry(
+          () =>
+            sendDiscordFollowUp(
+              applicationId,
+              token,
+              `🤖 **AI Response:**\n${aiResult.answer}`
+            ),
+          MAX_RETRIES
+        );
+      } catch (e: unknown) {
+        console.warn("[processor] Second Discord follow-up failed:", e instanceof Error ? e.message : e);
+      }
+    }
+
     const messageContent = `/${commandName} ${optionText}`;
     session = appendToSession(session, messageContent, aiResult.updatedSessionSummary);
-    await saveSession(session); // refreshes TTL (LRU touch on write)
-
+    await saveSession(session);
     await advanceState(interactionId, "ai_done");
   }
   result.aiRan = true;
@@ -197,6 +208,7 @@ export async function processInteractionEvent(
 
 interface AiResult {
   summary: string | null;
+  answer: string | null;
   tags: string[];
   /** Updated rolling session summary to store back in Redis. */
   updatedSessionSummary: string | null;
@@ -215,10 +227,14 @@ async function runInteractionAi(
   username: string,
   session: UserSession
 ): Promise<AiResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return { summary: null, tags: [], updatedSessionSummary: null };
 
   try {
+    const { redis } = await import("@repo/redis");
+    const rawMockData = await redis.get("mock_movies_context");
+    const mockContextSection = rawMockData ? `\n\n[MOCK DATABASE - NEW MOVIE LINKS]\n${rawMockData}` : "";
+
     const contextSection =
       session.contextMessages.length > 0
         ? `\nPrevious messages in this session:\n${session.contextMessages.map((m, i) => `  ${i + 1}. ${m}`).join("\n")}`
@@ -237,21 +253,27 @@ Current command: "/${commandName}" with options: "${optionText}"
 Respond with JSON only (no markdown):
 {
   "summary": "<one sentence: what the user wants right now>",
+  "answer": "<direct helpful response to the user's prompt/question>",
   "tags": ["<tag1>", "<tag2>"],
   "sessionSummary": "<updated rolling summary of the whole session in one sentence>"
 }
 
 Tags must be short lowercase labels: report, status, question, action, config, urgent, followup.
-sessionSummary should incorporate context from the full session, not just this message.`;
+sessionSummary should incorporate context from the full session, not just this message.${mockContextSection}`;
 
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://api.groq.com/openai/v1/chat/completions`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 200 },
+          model: "openai/gpt-oss-20b",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.2,
+          response_format: { type: "json_object" }
         }),
       }
     );
@@ -262,24 +284,24 @@ sessionSummary should incorporate context from the full session, not just this m
       return { summary: null, tags: [], updatedSessionSummary: null };
     }
 
-    const data = await res.json() as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
-    };
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    const data = await res.json() as any;
+    const text = data.choices?.[0]?.message?.content ?? "";
     const cleaned = text.replace(/```json\n?|\n?```/g, "").trim();
     const parsed = JSON.parse(cleaned) as {
       summary?: string;
+      answer?: string;
       tags?: string[];
       sessionSummary?: string;
     };
 
     return {
       summary: parsed.summary ?? null,
+      answer: parsed.answer ?? null,
       tags: Array.isArray(parsed.tags) ? parsed.tags : [],
       updatedSessionSummary: parsed.sessionSummary ?? null,
     };
   } catch (err) {
     console.warn("[processor] AI parsing failed:", err);
-    return { summary: null, tags: [], updatedSessionSummary: null };
+    return { summary: null, answer: null, tags: [], updatedSessionSummary: null };
   }
 }

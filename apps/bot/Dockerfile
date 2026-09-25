@@ -20,6 +20,7 @@ FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
+RUN apk add --no-cache ca-certificates
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nodeuser
 USER nodeuser
@@ -27,4 +28,4 @@ USER nodeuser
 COPY --from=installer --chown=nodeuser:nodejs /app .
 
 WORKDIR /app/apps/bot
-CMD ["node", "dist/index.js"]
+CMD ["bun", "dist/index.js"]

@@ -26,10 +26,14 @@ app.post("/api/worker", async (req: Request, res: Response) => {
 
   console.log(`[worker] Starting worker task for channel: ${channelId}`);
 
-  await Promise.all([
-    ensureConsumerGroup("interactions", channelId),
-    ensureConsumerGroup("bot-messages", channelId),
-  ]);
+  res.json({ status: "Started", channelId });
+
+  (async () => {
+    try {
+      await Promise.all([
+        ensureConsumerGroup("interactions", channelId),
+        ensureConsumerGroup("bot-messages", channelId),
+      ]);
 
   const writer = new BatchDbWriter();
   let idleTime = 0;
@@ -103,18 +107,21 @@ app.post("/api/worker", async (req: Request, res: Response) => {
     }
   }
 
-  // Cleanup: flush DB and remove lock
-  console.log(`[worker] Exiting worker task for channel: ${channelId} (idle: ${idleTime}ms, runtime: ${Date.now() - start}ms, pendingCount: ${writer.pendingCount})`);
-  if (writer.pendingCount > 0) {
-    try {
-      await writer.flush();
-    } catch (e) {
-      console.error(`[worker] Failed to flush DB on exit for ${channelId}:`, e);
+    // Cleanup: flush DB and remove lock
+    console.log(`[worker] Exiting worker task for channel: ${channelId} (idle: ${idleTime}ms, runtime: ${Date.now() - start}ms, pendingCount: ${writer.pendingCount})`);
+    if (writer.pendingCount > 0) {
+      try {
+        await writer.flush();
+      } catch (e) {
+        console.error(`[worker] Failed to flush DB on exit for ${channelId}:`, e);
+      }
     }
-  }
-  await redis.del(`worker:active:${channelId}`);
-
-  res.json({ status: "OK", channelId });
+    await redis.del(`worker:active:${channelId}`);
+    
+    } catch (err) {
+      console.error(`[worker] Fatal background task error for ${channelId}:`, err);
+    }
+  })();
 });
 
 const PORT = process.env.PORT || 3002;

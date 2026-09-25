@@ -16,10 +16,9 @@ export async function sendSlackNotification(text: string): Promise<void> {
 
   if (!res.ok) {
     const body = await res.text();
-    // 4xx are permanent, 5xx can be retried
     if (res.status >= 400 && res.status < 500) {
-      throw new PermanentError(`Slack webhook failed [${res.status}]: ${body}`);
+      throw new PermanentError(`Slack Webhook failed [${res.status}]: ${body}`);
     }
-    throw new Error(`Slack webhook failed [${res.status}]: ${body}`);
+    throw new Error(`Slack Webhook failed [${res.status}]: ${body}`);
   }
 }

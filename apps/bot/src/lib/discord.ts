@@ -46,8 +46,8 @@ export async function sendDiscordChannelMessage(
   channelId: string,
   content: string
 ): Promise<void> {
-  const botToken = process.env.DISCORD_BOT_TOKEN;
-  if (!botToken) throw new Error("DISCORD_BOT_TOKEN is not set");
+  const botToken = process.env.DISCORD_TOKEN;
+  if (!botToken) throw new Error("DISCORD_TOKEN is not set");
 
   const res = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
     method: "POST",
