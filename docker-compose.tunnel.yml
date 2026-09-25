@@ -8,4 +8,12 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
     network_mode: "host"

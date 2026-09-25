@@ -8,6 +8,14 @@ services:
       - "4000:4000"
     env_file:
       - apps/api/.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
   ingestion:
     build:
       context: .
@@ -16,6 +24,14 @@ services:
       - "3001:3001"
     env_file:
       - apps/ingestion/.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
 
   bot:
     build:
@@ -25,6 +41,14 @@ services:
       - "3002:3002"
     env_file:
       - apps/bot/.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
 
 
   dashboard:
@@ -35,6 +59,14 @@ services:
       - "3000:3000"
     env_file:
       - apps/dashboard/.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
  
 
   monitor:
@@ -45,6 +77,14 @@ services:
       - "3003:3003"
     env_file:
       - apps/monitor/.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
   tunnel:
     image: cloudflare/cloudflared:latest
     command: tunnel --no-autoupdate run
@@ -53,3 +93,11 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
