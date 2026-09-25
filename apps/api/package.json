@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "bun@1.3.14",
   "scripts": {
-    "build:packages": "cd ../../packages/types && bun run build && cd ../../packages/db && bun run build && cd ../../packages/redis && bun run build",
+    "build:packages": "bun run --filter=@repo/types build && bun run --filter=@repo/db build && bun run --filter=@repo/redis build",
     "dev": "tsx watch src/index.ts",
     "build": "bun run build:packages && tsup",
     "start": "node dist/index.js"
