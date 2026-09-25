@@ -1,4 +1,6 @@
-import { NextResponse } from "next/server";
+import "dotenv/config";
+import express, { Request, Response } from "express";
+import cors from "cors";
 import {
   ensureConsumerGroup,
   streamReadMultiple,
@@ -7,20 +9,19 @@ import {
   redis,
 } from "@repo/redis";
 import type { QueueEvent, InteractionQueueEvent, BotMessageQueueEvent } from "@repo/types";
-import { BatchDbWriter } from "../../../lib/batch-writer";
-import { processInteractionEvent } from "../../../lib/interaction-processor";
-// bot message processor is currently missing, let's create a stub or just handle interaction for now
-// import { processBotMessageEvent } from "@/lib/bot-message-processor";
+import { BatchDbWriter } from "./lib/batch-writer";
+import { processInteractionEvent } from "./lib/interaction-processor";
 
-export const maxDuration = 60; // Vercel hobby max 10s/60s, pro 300s. Let's maximize within hobby limits.
-export const dynamic = "force-dynamic";
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-export async function POST(req: Request) {
-  const url = new URL(req.url);
-  const channelId = url.searchParams.get("channelId");
+app.post("/api/worker", async (req: Request, res: Response) => {
+  const channelId = req.query.channelId as string;
 
   if (!channelId) {
-    return NextResponse.json({ error: "Missing channelId" }, { status: 400 });
+    res.status(400).json({ error: "Missing channelId" });
+    return;
   }
 
   console.log(`[worker] Starting lambda for channel: ${channelId}`);
@@ -113,5 +114,10 @@ export async function POST(req: Request) {
   }
   await redis.del(`worker:active:${channelId}`);
 
-  return NextResponse.json({ status: "OK", channelId });
-}
+  res.json({ status: "OK", channelId });
+});
+
+const PORT = process.env.PORT || 3002;
+app.listen(PORT, () => {
+  console.log(`> Bot API Server running on port ${PORT}`);
+});

@@ -1,5 +1,5 @@
 FROM oven/bun:1-alpine AS base
-ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
 
 FROM base AS builder
 WORKDIR /app
@@ -22,16 +22,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-USER nextjs
+RUN adduser --system --uid 1001 nodeuser
+USER nodeuser
 
-COPY --from=installer /app/apps/bot/next.config.js .
-COPY --from=installer /app/apps/bot/package.json .
+COPY --from=installer --chown=nodeuser:nodejs /app .
 
-COPY --from=installer --chown=nextjs:nodejs /app/apps/bot/.next/standalone ./
-COPY --from=installer --chown=nextjs:nodejs /app/apps/bot/.next/static ./apps/bot/.next/static
-# Provide full node_modules so Bun's symlinked Prisma engine can be found
-COPY --from=installer --chown=nextjs:nodejs /app/node_modules ./node_modules
-COPY --from=installer --chown=nextjs:nodejs /app/packages/db ./packages/db
-
-CMD ["bun", "run", "apps/bot/server.js"]
+WORKDIR /app/apps/bot
+CMD ["node", "dist/index.js"]

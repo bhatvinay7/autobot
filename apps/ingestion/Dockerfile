@@ -1,5 +1,5 @@
 FROM oven/bun:1-alpine AS base
-ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
 
 FROM base AS builder
 WORKDIR /app
@@ -22,13 +22,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-USER nextjs
+RUN adduser --system --uid 1001 nodeuser
+USER nodeuser
 
-COPY --from=installer /app/apps/ingestion/next.config.js .
-COPY --from=installer /app/apps/ingestion/package.json .
-COPY --from=installer --chown=nextjs:nodejs /app/apps/ingestion/.next/standalone ./
-COPY --from=installer --chown=nextjs:nodejs /app/apps/ingestion/.next/static ./apps/ingestion/.next/static
+COPY --from=installer --chown=nodeuser:nodejs /app .
 
-
-CMD ["bun", "run", "apps/ingestion/server.js"]
+WORKDIR /app/apps/ingestion
+CMD ["node", "dist/index.js"]

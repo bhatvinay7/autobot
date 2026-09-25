@@ -11,6 +11,8 @@
     "check-types": "tsc --noEmit"
   },
   "devDependencies": {
+    "@babel/core": "^8.0.6",
+    "@babel/preset-typescript": "^8.0.1",
     "@repo/eslint-config": "*",
     "@repo/typescript-config": "*",
     "@types/node": "26.4.1",

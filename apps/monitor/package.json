@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "build:packages": "cd ../../packages/types && bun run build && cd ../../packages/db && bun run build && cd ../../packages/redis && bun run build",
     "dev": "next dev --port 3003",
-    "build": "next build",
+    "build": "bun run build:packages && next build",
     "start": "next start --port 3003",
     "lint": "next lint",
     "check-types": "tsc --noEmit"
@@ -23,6 +24,8 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "eslint": "^10.11.0",
+    "eslint-config-next": "^16.3.6",
     "typescript": "^5.5.4"
   }
 }

@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "build:packages": "cd ../../packages/types && bun run build && cd ../../packages/db && bun run build && cd ../../packages/redis && bun run build",
     "dev": "tsx watch src/index.ts",
-    "build": "tsup",
+    "build": "bun run build:packages && tsup",
     "start": "node dist/index.js"
   },
   "dependencies": {

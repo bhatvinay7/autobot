@@ -3,26 +3,28 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3001",
-    "build": "next build",
-    "start": "next start --port 3001",
-    "lint": "next lint",
+    "build:packages": "cd ../../packages/types && bun run build && cd ../../packages/db && bun run build && cd ../../packages/redis && bun run build",
+    "dev": "tsx watch src/index.ts",
+    "build": "bun run build:packages && tsup",
+    "start": "node dist/index.js",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
     "@repo/redis": "*",
     "@repo/types": "*",
-    "next": "15.5.26",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.3",
+    "express": "^5.2.1",
     "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
     "@repo/eslint-config": "*",
     "@repo/typescript-config": "*",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "@types/node": "^22.0.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
+    "tsup": "^8.5.1",
+    "tsx": "^4.23.15",
     "typescript": "^5.5.4"
   }
 }
