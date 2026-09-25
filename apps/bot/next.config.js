@@ -4,6 +4,7 @@ const nextConfig = {
   output: "standalone",
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
+  transpilePackages: ["@repo/db", "@repo/redis", "@repo/types"],
   serverExternalPackages: ["@prisma/client", "@repo/db"],
 };
 
