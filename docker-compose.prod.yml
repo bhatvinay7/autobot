@@ -1,0 +1,37 @@
+services:
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - dashboard
+      - ingestion
+      - bot
+      - api
+
+  api:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/automate-api:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+
+  ingestion:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/automate-ingestion:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+
+  bot:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/automate-bot:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+
+  dashboard:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/automate-dashboard:latest
+    restart: unless-stopped
+    env_file:
+      - .env
