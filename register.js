@@ -1,6 +1,7 @@
-const APP_ID = "1552639963328155739";
-const TOKEN = "REMOVED_TOKEN";
+require('dotenv').config();
 
+const APP_ID = process.env.DISCORD_CLIENT_ID || process.env.APP_ID || "1552639963328155739";
+const TOKEN = process.env.DISCORD_TOKEN;
 const commands = [
   {
     name: "ask",
