@@ -81,6 +81,7 @@ export default function DashboardPage() {
   const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"log" | "config" | "fertilizer">("log");
+  const [logMode, setLogMode] = useState<"live" | "history">("live");
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -106,40 +107,21 @@ export default function DashboardPage() {
   }, [page]);
 
   useEffect(() => {
-    if (page > 1 || activeTab !== "log") {
-      void fetchData();
+    // Fetch initial data from DB on load/refresh for the current page
+    void fetchData();
+
+    if (page > 1 || activeTab !== "log" || logMode !== "live") {
       return;
     }
 
-    // SSE Live Stream for page 1
+    // SSE Live Stream for page 1 to append new events client-side
     const eventSource = new EventSource(`${API_BASE}/api/logs/stream`);
 
     eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === "INITIAL") {
-          // Initialize with LRU cache from Redis
-          // Map Redis cache format to our UI format
-          const mapped = data.logs.map((l: any) => ({
-            id: l.id,
-            interactionId: l.id,
-            guildId: l.payload.guildId,
-            channelId: l.payload.channelId,
-            userId: l.payload.userId,
-            username: l.payload.username,
-            commandName: l.payload.commandName,
-            commandOptions: l.payload.commandOptions,
-            status: l.result.error ? "FAILED" : "PROCESSED",
-            receivedAt: l.payload.receivedAt,
-            processedAt: l.timestamp,
-            actions: [
-              { id: l.id + "1", type: "DISCORD_REPLY", status: l.result.discordSent ? "SUCCESS" : "FAILED", retryCount: 0, error: l.result.error },
-              { id: l.id + "2", type: "SLACK_MIRROR", status: l.result.slackSent ? "SUCCESS" : "FAILED", retryCount: 0, error: l.result.error },
-            ].filter(a => a.status === "SUCCESS" || a.error)
-          }));
-          setInteractions(mapped.slice(-20));
-          setLoading(false);
-        } else if (data.type === "NEW_EVENT") {
+        // Ignore "INITIAL" as we now fetch from DB directly
+        if (data.type === "NEW_EVENT") {
           // Append new event (ascending order: newest at bottom)
           const l = data.log;
           const mappedItem = {
@@ -159,7 +141,10 @@ export default function DashboardPage() {
               { id: l.id + "2", type: "SLACK_MIRROR", status: l.result.slackSent ? "SUCCESS" : "FAILED", retryCount: 0, error: l.result.error },
             ].filter(a => a.status === "SUCCESS" || a.error)
           };
-          setInteractions((prev) => [...prev, mappedItem].slice(-20));
+          setInteractions((prev) => {
+            if (prev.some(i => i.id === mappedItem.id)) return prev;
+            return [...prev, mappedItem].slice(-20);
+          });
         }
       } catch (err) {
         console.error("SSE parse error", err);
@@ -169,14 +154,12 @@ export default function DashboardPage() {
     eventSource.onerror = (err) => {
       console.error("SSE error", err);
       eventSource.close();
-      // Fallback to db fetch on SSE error
-      void fetchData();
     };
 
     return () => {
       eventSource.close();
     };
-  }, [page, activeTab, fetchData]);
+  }, [page, activeTab, logMode, fetchData]);
 
   async function handleLogout() {
     await fetch(`${API_BASE}/api/auth`, { method: "DELETE" });
@@ -237,12 +220,33 @@ export default function DashboardPage() {
       <main className="main-content">
         {activeTab === "log" && (
           <>
-            <div className="page-header animate-in">
-              <h1 className="page-title">Interaction Log</h1>
-              <p className="page-subtitle">
-                <span className="live-dot" style={{ marginRight: 8 }} />
-                Live · refreshes every 15s
-              </p>
+            <div className="page-header animate-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <h1 className="page-title">Interaction Log</h1>
+                <p className="page-subtitle">
+                  {logMode === "live" ? (
+                    <><span className="live-dot" style={{ marginRight: 8 }} />Live · appending via SSE</>
+                  ) : (
+                    <>Old Logs · Historical Data</>
+                  )}
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', background: 'var(--bg-elevated)', padding: '4px', borderRadius: '8px' }}>
+                <button 
+                  className={`btn ${logMode === 'live' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ minHeight: '32px', height: '32px', fontSize: '0.8rem', padding: '0 12px' }}
+                  onClick={() => { setLogMode('live'); setPage(1); }}
+                >
+                  Live Logs
+                </button>
+                <button 
+                  className={`btn ${logMode === 'history' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ minHeight: '32px', height: '32px', fontSize: '0.8rem', padding: '0 12px' }}
+                  onClick={() => setLogMode('history')}
+                >
+                  Old Logs
+                </button>
+              </div>
             </div>
 
             {/* Stats */}
@@ -349,7 +353,7 @@ export default function DashboardPage() {
             )}
 
             {/* Pagination */}
-            {pages > 1 && (
+            {pages > 1 && logMode === "history" && (
               <div style={{ display: "flex", gap: 8, marginTop: 16, alignItems: "center" }}>
                 <button
                   className="btn btn-ghost"
