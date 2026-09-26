@@ -31,13 +31,13 @@ export async function streamPublish<T extends QueueEvent>(
 
 // ─── Ensure consumer group exists ────────────────────────────────────────────
 
-export async function ensureConsumerGroup(stream: StreamName, suffix?: string): Promise<void> {
+export async function ensureConsumerGroup(stream: StreamName, suffix?: string, groupName: string = CONSUMER_GROUP): Promise<void> {
   let key = STREAMS[stream];
   if (suffix) {
     key = `${key}:${suffix}`;
   }
   try {
-    await redis.xgroup("CREATE", key, CONSUMER_GROUP, "0", "MKSTREAM");
+    await redis.xgroup("CREATE", key, groupName, "0", "MKSTREAM");
   } catch (err: unknown) {
     if (!(err instanceof Error) || !err.message.includes("BUSYGROUP")) {
       throw err;
@@ -57,7 +57,8 @@ export async function streamRead<T extends QueueEvent>(
   consumerName: string,
   count = 10,
   blockMs = 0,
-  suffix?: string
+  suffix?: string,
+  groupName: string = CONSUMER_GROUP
 ): Promise<StreamEntry<T>[]> {
   let key = STREAMS[stream];
   if (suffix) {
@@ -65,7 +66,7 @@ export async function streamRead<T extends QueueEvent>(
   }
   const results = await redis.xreadgroup(
     "GROUP",
-    CONSUMER_GROUP,
+    groupName,
     consumerName,
     "COUNT",
     count,
@@ -95,7 +96,8 @@ export async function streamReadMultiple(
   streams: { name: StreamName; suffix?: string }[],
   consumerName: string,
   count = 10,
-  blockMs = 1000
+  blockMs = 1000,
+  groupName: string = CONSUMER_GROUP
 ): Promise<{ stream: StreamName; suffix?: string; entries: StreamEntry<QueueEvent>[] }[]> {
   const streamKeys = streams.map((s) => {
     let key = STREAMS[s.name];
@@ -106,7 +108,7 @@ export async function streamReadMultiple(
   
   const results = await redis.xreadgroup(
     "GROUP",
-    CONSUMER_GROUP,
+    groupName,
     consumerName,
     "COUNT",
     count,
@@ -148,13 +150,14 @@ export async function streamReadMultiple(
 export async function streamAck(
   stream: StreamName,
   streamId: string,
-  suffix?: string
+  suffix?: string,
+  groupName: string = CONSUMER_GROUP
 ): Promise<void> {
   let key = STREAMS[stream];
   if (suffix) {
     key = `${key}:${suffix}`;
   }
-  await redis.xack(key, CONSUMER_GROUP, streamId);
+  await redis.xack(key, groupName, streamId);
 }
 
 // ─── Move to DLQ ─────────────────────────────────────────────────────────────
@@ -164,7 +167,8 @@ export async function moveToDlq<T extends QueueEvent>(
   streamId: string,
   event: T,
   error: Error | string,
-  suffix?: string
+  suffix?: string,
+  groupName: string = CONSUMER_GROUP
 ): Promise<void> {
   const errorMessage = error instanceof Error ? error.message : error;
   await streamPublish("dlq", {
@@ -173,7 +177,7 @@ export async function moveToDlq<T extends QueueEvent>(
     error: errorMessage,
     _dlqAt: new Date().toISOString(),
   } as unknown as T);
-  await streamAck(stream, streamId, suffix);
+  await streamAck(stream, streamId, suffix, groupName);
 }
 
 // ─── Deduplication via TTL key ────────────────────────────────────────────────

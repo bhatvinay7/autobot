@@ -44,180 +44,150 @@ export interface InteractionProcessResult {
   error?: string;
 }
 
-export async function processInteractionEvent(
-  event: InteractionQueueEvent,
-  writer: BatchDbWriter
-): Promise<InteractionProcessResult> {
-  const {
-    interactionId,
-    token,
-    applicationId,
-    commandName,
-    commandOptions,
-    username,
-    guildId,
-    channelId,
-    userId,
-  } = event;
-
-  // ── Load current idempotency state (crash recovery) ───────────────────────
-  const currentState = await getProcessingState(interactionId);
+export async function processBotInteraction(event: InteractionQueueEvent): Promise<InteractionProcessResult> {
+  const { interactionId, token, applicationId, commandName, commandOptions, username, guildId, channelId, userId } = event;
+  const currentState = await getProcessingState(`bot:${interactionId}`);
   if (currentState === "done") {
-    return { interactionId, discordSent: true, slackSent: true, aiRan: true, skipped: true };
+    return { interactionId, discordSent: true, slackSent: false, aiRan: true, skipped: true };
   }
 
-  const result: InteractionProcessResult = {
-    interactionId, discordSent: false, slackSent: false, aiRan: false, skipped: false,
-  };
+  const result: InteractionProcessResult = { interactionId, discordSent: false, slackSent: false, aiRan: false, skipped: false };
+  const optionText = commandOptions.length > 0 ? commandOptions.map((o) => `${o.name}: ${o.value}`).join(", ") : "no options";
 
-  const optionText =
-    commandOptions.length > 0
-      ? commandOptions.map((o) => `${o.name}: ${o.value}`).join(", ")
-      : "no options";
-
-  const mirrorText = `🤖 **/${commandName}** by \`${username}\` in guild \`${guildId ?? "DM"}\` — ${optionText}`;
-
-  // ── Load session (LRU touch — refreshes TTL on read) ─────────────────────
   const channel = channelId ?? "dm";
-  let session: UserSession =
-    (await getSession(userId, channel)) ??
-    createSession(userId, username, channel, guildId);
+  let session = (await getSession(userId, channel)) ?? createSession(userId, username, channel, guildId);
 
-  // ── Step 1: Discord reply ─────────────────────────────────────────────────
+  // Step 1: Discord reply
   if (!isStepComplete(currentState, "discord_done")) {
-    const sessionHint =
-      session.messageCount > 0 && session.recentSummary
-        ? `\n> *Context:* ${session.recentSummary}`
-        : "";
-
+    const sessionHint = session.messageCount > 0 && session.recentSummary ? `\n> *Context:* ${session.recentSummary}` : "";
     try {
-      await withRetry(
-        () =>
-          sendDiscordFollowUp(
-            applicationId,
-            token,
-            `✅ **/${commandName}** received — ${optionText}${sessionHint}`
-          ),
-        MAX_RETRIES
-      );
+      await withRetry(() => sendDiscordFollowUp(applicationId, token, `✅ **/${commandName}** received — ${optionText}${sessionHint}`), MAX_RETRIES);
       result.discordSent = true;
-
-      const mirrorChannelId = process.env.DISCORD_MIRROR_CHANNEL_ID;
-      if (mirrorChannelId) {
-        await withRetry(
-          () => sendDiscordChannelMessage(mirrorChannelId, mirrorText),
-          MAX_RETRIES
-        ).catch((e: unknown) => console.warn("[processor] Mirror channel send failed:", e));
-      }
     } catch (e: unknown) {
       console.warn("[processor] Discord follow-up failed (non-fatal):", e instanceof Error ? e.message : e);
       result.discordSent = false;
     }
-    await advanceState(interactionId, "discord_done");
+    await advanceState(`bot:${interactionId}`, "discord_done");
   } else {
     result.discordSent = true;
   }
 
-  // ── Step 2: Slack mirror ──────────────────────────────────────────────────
-  if (!isStepComplete(currentState, "slack_done")) {
-    try {
-      await withRetry(() => sendSlackNotification(mirrorText), MAX_RETRIES);
-      result.slackSent = true;
-    } catch (e: unknown) {
-      console.warn("[processor] Slack mirror failed (non-fatal):", e instanceof Error ? e.message : e);
-      result.slackSent = false;
-    }
-    await advanceState(interactionId, "slack_done");
-  } else {
-    result.slackSent = true;
-  }
-
-  // ── Step 3: AI enrichment & Second Discord Message ───────────────────────
-  let aiSummary: string | null = null;
-  let aiTags: string[] = [];
-
+  // Step 2: AI enrichment & Second Discord Message
   if (!isStepComplete(currentState, "ai_done")) {
     const aiResult = await runInteractionAi(commandName, optionText, username, session);
-    aiSummary = aiResult.summary;
-    aiTags = aiResult.tags;
-
     if (aiResult.answer) {
       try {
-        await withRetry(
-          () =>
-            sendDiscordFollowUp(
-              applicationId,
-              token,
-              `🤖 **AI Response:**\n${aiResult.answer}`
-            ),
-          MAX_RETRIES
-        );
+        await withRetry(() => sendDiscordFollowUp(applicationId, token, `🤖 **AI Response:**\n${aiResult.answer}`), MAX_RETRIES);
       } catch (e: unknown) {
         console.warn("[processor] Second Discord follow-up failed:", e instanceof Error ? e.message : e);
       }
     }
-
     if (aiResult.imageUrl) {
       try {
-        await withRetry(
-          () =>
-            sendDiscordFollowUp(
-              applicationId,
-              token,
-              `🖼️ **Related Image:**\n${aiResult.imageUrl}`
-            ),
-          MAX_RETRIES
-        );
+        await withRetry(() => sendDiscordFollowUp(applicationId, token, `🖼️ **Related Image:**\n${aiResult.imageUrl}`), MAX_RETRIES);
       } catch (e: unknown) {
         console.warn("[processor] Image Discord follow-up failed:", e instanceof Error ? e.message : e);
       }
     }
-
     const messageContent = `/${commandName} ${optionText}`;
     session = appendToSession(session, messageContent, aiResult.updatedSessionSummary);
     await saveSession(session);
-    await advanceState(interactionId, "ai_done");
+    
+    // Store AI results temporarily for DB writer to pick up (using Redis)
+    if (aiResult.summary || aiResult.tags.length > 0) {
+      await redis.set(`ai_result:${interactionId}`, JSON.stringify({ summary: aiResult.summary, tags: aiResult.tags }), "EX", 3600);
+    }
+    await advanceState(`bot:${interactionId}`, "ai_done");
   }
   result.aiRan = true;
 
-  // ── Step 4: Queue DB writes (batched) ────────────────────────────────────
+  // Mark overall as done
+  await advanceState(`bot:${interactionId}`, "done");
+  return result;
+}
+
+export async function processSlackMirror(event: InteractionQueueEvent): Promise<InteractionProcessResult> {
+  const { interactionId, commandName, commandOptions, username, guildId } = event;
+  const currentState = await getProcessingState(`slack:${interactionId}`);
+  if (currentState === "done") {
+    return { interactionId, discordSent: false, slackSent: true, aiRan: false, skipped: true };
+  }
+
+  const result: InteractionProcessResult = { interactionId, discordSent: false, slackSent: false, aiRan: false, skipped: false };
+  const optionText = commandOptions.length > 0 ? commandOptions.map((o) => `${o.name}: ${o.value}`).join(", ") : "no options";
+  const mirrorText = `🤖 **/${commandName}** by \`${username}\` in guild \`${guildId ?? "DM"}\` — ${optionText}`;
+
+  if (!isStepComplete(currentState, "slack_done")) {
+    try {
+      await withRetry(() => sendSlackNotification(mirrorText), MAX_RETRIES);
+      result.slackSent = true;
+      
+      const mirrorChannelId = process.env.DISCORD_MIRROR_CHANNEL_ID;
+      if (mirrorChannelId) {
+        await withRetry(() => sendDiscordChannelMessage(mirrorChannelId, mirrorText), MAX_RETRIES).catch((e: unknown) => console.warn("[processor] Mirror channel send failed:", e));
+      }
+    } catch (e: unknown) {
+      console.warn("[processor] Slack mirror failed (non-fatal):", e instanceof Error ? e.message : e);
+      result.slackSent = false;
+    }
+    await advanceState(`slack:${interactionId}`, "slack_done");
+  } else {
+    result.slackSent = true;
+  }
+  
+  await advanceState(`slack:${interactionId}`, "done");
+  return result;
+}
+
+export async function processDbWrite(event: InteractionQueueEvent, writer: BatchDbWriter): Promise<InteractionProcessResult> {
+  const { interactionId, commandName, commandOptions, username, guildId, channelId, userId, applicationId } = event;
+  const currentState = await getProcessingState(`db:${interactionId}`);
+  if (currentState === "done") {
+    return { interactionId, discordSent: false, slackSent: false, aiRan: false, skipped: true };
+  }
+  
+  const result: InteractionProcessResult = { interactionId, discordSent: false, slackSent: false, aiRan: false, skipped: false };
+
   if (!isStepComplete(currentState, "db_queued")) {
+    // Try to fetch AI results if available (from bot processor)
+    let aiSummary: string | null = null;
+    let aiTags: string[] = [];
+    try {
+      const aiResRaw = await redis.get(`ai_result:${interactionId}`);
+      if (aiResRaw) {
+        const aiRes = JSON.parse(aiResRaw);
+        aiSummary = aiRes.summary;
+        aiTags = aiRes.tags || [];
+      }
+    } catch(e) {}
+
     const interactionRow: PendingInteractionWrite = {
-      interactionId,
-      guildId,
-      channelId,
-      userId,
-      username,
-      commandName,
-      commandOptions,
-      status: "PROCESSED",
-      receivedAt: new Date(event.receivedAt),
-      processedAt: new Date(),
-      aiSummary,
-      aiTags,
+      interactionId, guildId, channelId, userId, username, commandName, commandOptions,
+      status: "PROCESSED", receivedAt: new Date(event.receivedAt), processedAt: new Date(),
+      aiSummary, aiTags,
     };
     writer.queueInteraction(interactionRow);
 
     writer.queueAction({
-      interactionId, type: "BOT_REPLY", status: "SUCCESS",
-      payload: { applicationId, channelId }, retryCount: 0, error: null,
-    } satisfies PendingActionWrite);
-
+      interactionId, type: "BOT_REPLY", status: "SUCCESS", payload: { applicationId, channelId }, retryCount: 0, error: null,
+    });
+    
+    const optionText = commandOptions.length > 0 ? commandOptions.map((o) => `${o.name}: ${o.value}`).join(", ") : "no options";
+    const mirrorText = `🤖 **/${commandName}** by \`${username}\` in guild \`${guildId ?? "DM"}\` — ${optionText}`;
     writer.queueAction({
-      interactionId, type: "MIRROR_SLACK", status: "SUCCESS",
-      payload: { text: mirrorText }, retryCount: 0, error: null,
-    } satisfies PendingActionWrite);
+      interactionId, type: "MIRROR_SLACK", status: "SUCCESS", payload: { text: mirrorText }, retryCount: 0, error: null,
+    });
 
     if (aiSummary || aiTags.length > 0) {
       writer.queueAction({
-        interactionId, type: "AI_TAG", status: "SUCCESS",
-        payload: { summary: aiSummary, tags: aiTags }, retryCount: 0, error: null,
-      } satisfies PendingActionWrite);
+        interactionId, type: "AI_TAG", status: "SUCCESS", payload: { summary: aiSummary, tags: aiTags }, retryCount: 0, error: null,
+      });
     }
 
-    await advanceState(interactionId, "db_queued");
+    await advanceState(`db:${interactionId}`, "db_queued");
   }
-
+  
+  await advanceState(`db:${interactionId}`, "done");
   return result;
 }
 

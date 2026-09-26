@@ -12,14 +12,20 @@ flowchart TD
     IsValid -->|Yes| Stream[(Redis Stream)]
     Ingestion -->|Immediate ACK| User
     
-    Worker[Bot Worker] -->|Consume Events| Stream
-    Worker -->|Fetch Context| DB[(Postgres/Vector DB)]
-    Worker -->|Process AI| AI[LLM / Gemini / Groq]
-    AI --> Worker
-    Worker -->|Follow-up Message| User
-    Worker -->|Log to Slack| Slack[Slack Webhook]
+    Stream -->|Fanout| CGBot[Consumer: cg-bot-processor]
+    Stream -->|Fanout| CGSlack[Consumer: cg-slack-notifier]
+    Stream -->|Fanout| CGDB[Consumer: cg-db-writer]
+
+    CGBot -->|Fetch Context| DB[(Postgres/Vector DB)]
+    CGBot -->|Process AI| AI[LLM / Groq]
+    AI --> CGBot
+    CGBot -->|Follow-up Message| User
     
-    Worker -->|Publish Live Log| PubSub((Redis PubSub))
+    CGSlack -->|Log to Slack| Slack[Slack Webhook]
+    
+    CGDB -->|Batch Writes| DB
+    
+    CGBot -->|Publish Live Log| PubSub((Redis PubSub))
     PubSub --> Dashboard[Admin Dashboard]
     Dashboard -->|SSE Updates| Admin([Admin User])
 ```
