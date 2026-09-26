@@ -7,7 +7,7 @@ import nacl from "tweetnacl";
  * @see https://discord.com/developers/docs/interactions/receiving-and-responding#security-and-authorization
  */
 export function verifyDiscordSignature(
-  rawBody: string,
+  rawBody: Buffer,
   signature: string,
   timestamp: string
 ): boolean {
@@ -19,7 +19,7 @@ export function verifyDiscordSignature(
     if (!publicKey) throw new Error("DISCORD_PUBLIC_KEY is not set");
 
     const isValid = nacl.sign.detached.verify(
-      Buffer.from(timestamp + rawBody),
+      Buffer.concat([Buffer.from(timestamp), rawBody]),
       Buffer.from(signature, "hex"),
       Buffer.from(publicKey, "hex")
     );

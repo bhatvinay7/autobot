@@ -15,12 +15,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// We need the raw body as text for signature verification
-app.use(express.text({ type: "application/json" }));
+// We need the raw body as a Buffer for exact signature verification
+app.use(express.raw({ type: "application/json" }));
 
 app.post("/api/interactions", async (req: Request, res: Response) => {
   console.log(`[ingestion] Received interaction!`);
-  const rawBody = req.body;
+  const rawBody = req.body as Buffer;
   const signature = req.headers["x-signature-ed25519"] as string || "";
   const timestamp = req.headers["x-signature-timestamp"] as string || "";
 
@@ -31,7 +31,7 @@ app.post("/api/interactions", async (req: Request, res: Response) => {
 
   let interaction: DiscordInteraction;
   try {
-    interaction = JSON.parse(rawBody) as DiscordInteraction;
+    interaction = JSON.parse(rawBody.toString("utf8")) as DiscordInteraction;
   } catch {
     res.status(400).send("Invalid JSON body");
     return;
