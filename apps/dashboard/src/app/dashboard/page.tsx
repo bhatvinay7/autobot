@@ -137,10 +137,10 @@ export default function DashboardPage() {
               { id: l.id + "2", type: "SLACK_MIRROR", status: l.result.slackSent ? "SUCCESS" : "FAILED", retryCount: 0, error: l.result.error },
             ].filter(a => a.status === "SUCCESS" || a.error)
           }));
-          setInteractions(mapped.slice(0, 20));
+          setInteractions(mapped.slice(-20));
           setLoading(false);
         } else if (data.type === "NEW_EVENT") {
-          // Prepend new event
+          // Append new event (ascending order: newest at bottom)
           const l = data.log;
           const mappedItem = {
             id: l.id,
@@ -159,7 +159,7 @@ export default function DashboardPage() {
               { id: l.id + "2", type: "SLACK_MIRROR", status: l.result.slackSent ? "SUCCESS" : "FAILED", retryCount: 0, error: l.result.error },
             ].filter(a => a.status === "SUCCESS" || a.error)
           };
-          setInteractions((prev) => [mappedItem, ...prev].slice(0, 20));
+          setInteractions((prev) => [...prev, mappedItem].slice(-20));
         }
       } catch (err) {
         console.error("SSE parse error", err);

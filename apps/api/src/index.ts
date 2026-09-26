@@ -184,12 +184,14 @@ app.get("/api/interactions", async (req: Request, res: Response) => {
     prisma.interaction.findMany({
       where,
       include: { actions: true },
-      orderBy: { receivedAt: "asc" },
+      orderBy: { receivedAt: "desc" },
       skip: (page - 1) * limit,
       take: limit,
     }),
     prisma.interaction.count({ where }),
   ]);
+
+  interactions.reverse(); // Return in ascending order (newest at the bottom)
 
   res.json({
     success: true,
@@ -274,7 +276,7 @@ app.get("/api/logs/stream", async (req: Request, res: Response) => {
   const redisSub = new Redis(redisUrl);
 
   try {
-    const latestRaw = await redisClient.lrange("dashboard:logs:latest", 0, 99);
+    const latestRaw = await redisClient.lrange("dashboard:logs:latest", 0, 19);
     const latest = latestRaw.map(r => JSON.parse(r)).reverse();
     res.write(`data: ${JSON.stringify({ type: "INITIAL", logs: latest })}\n\n`);
   } catch (err) {
