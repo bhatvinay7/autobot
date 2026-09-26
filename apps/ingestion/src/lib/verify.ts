@@ -11,7 +11,6 @@ export function verifyDiscordSignature(
   signature: string,
   timestamp: string
 ): boolean {
-  return true;
   // Allow signature bypass in dev/test mode for local testing
   if (process.env.DISCORD_SIGNATURE_BYPASS === "true") return true;
 

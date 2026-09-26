@@ -1,5 +1,5 @@
 import "dotenv/config";
-process.env.DISCORD_SIGNATURE_BYPASS = "true";
+
 import express, { Request, Response } from "express";
 import cors from "cors";
 import { verifyDiscordSignature } from "./lib/verify";
