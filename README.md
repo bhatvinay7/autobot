@@ -4,47 +4,24 @@ A production-grade Discord bot interaction system built with Next.js, TypeScript
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────────────────┐
-│                  Discord (slash command)             │
-└───────────────────────┬──────────────────────────────┘
-                        │ HTTPS POST
-                        ▼
-          ┌─────────────────────────┐
-          │   apps/ingestion        │  ← Express API (Vercel Container)
-          │   Verify Ed25519 sig    │
-          │   Dedup + store token   │
-          │   ACK (type 5) <3s      │
-          │   → Redis Stream per    │
-          │       channel           │
-          └────────────┬────────────┘
-                       │ Async Fetch Trigger
-                       ▼
-          ┌─────────────────────────┐
-          │   apps/bot              │  ← Express API (Vercel Container)
-          │   Event-driven worker   │
-          │   Initial Discord ACK   │
-          │   AI context enrichment │
-          │   Secondary AI Discord  │
-          │     follow-up message   │
-          │   DB Batch Writer       │
-          └────────────┬────────────┘
-                       │ Redis Pub/Sub & Capped List
-          ┌────────────▼────────────┐
-          │   apps/dashboard        │  ← Next.js (Vercel Serverless)
-          │   Admin login (JWT)     │
-          │   Live SSE interaction  │
-          │   log (Redis cached)    │
-          └─────────────────────────┘
-          ┌─────────────────────────┐
-          │   apps/api              │  ← Express API (Vercel Container)
-          │   /api/health           │
-          │   Auth & Config routes  │
-          └─────────────────────────┘
-          ┌─────────────────────────┐
-          │   apps/monitor          │  ← Next.js (Vercel Serverless)
-          │   Status UI             │
-          └─────────────────────────┘
+```mermaid
+flowchart TD
+    User([Discord User]) -->|Slash Command| Ingestion[Ingestion API]
+    Ingestion -->|Verify Signature| IsValid{Valid?}
+    IsValid -->|No| Reject[401 Unauthorized]
+    IsValid -->|Yes| Stream[(Redis Stream)]
+    Ingestion -->|Immediate ACK| User
+    
+    Worker[Bot Worker] -->|Consume Events| Stream
+    Worker -->|Fetch Context| DB[(Postgres/Vector DB)]
+    Worker -->|Process AI| AI[LLM / Gemini / Groq]
+    AI --> Worker
+    Worker -->|Follow-up Message| User
+    Worker -->|Log to Slack| Slack[Slack Webhook]
+    
+    Worker -->|Publish Live Log| PubSub((Redis PubSub))
+    PubSub --> Dashboard[Admin Dashboard]
+    Dashboard -->|SSE Updates| Admin([Admin User])
 ```
 
 ## Monorepo Structure
@@ -96,6 +73,19 @@ Services will start at:
 - **Bot Worker**: http://localhost:3002/api/worker
 - **Monitor**: http://localhost:3003/api/health
 
+### Running Locally with Cloudflare Tunnel
+
+To run the full stack locally and expose your ingestion endpoint securely to Discord, use the tunnel setup:
+
+1. Create a Cloudflare Tunnel and copy the token.
+2. Add the token to your `.env` as `CLOUDFLARE_TUNNEL_TOKEN`.
+3. In your Cloudflare Zero Trust Dashboard, route your public hostname to `http://ingestion:3001`.
+4. Start the stack with the tunnel included:
+   ```bash
+   docker-compose -f docker-compose.yml -f docker-compose.tunnel.yml up --build
+   ```
+5. Set your **Discord Interactions Endpoint URL** to your Cloudflare Tunnel URL (e.g., `https://api.yourdomain.com/api/interactions`).
+
 ### Running Locally (Native Bun)
 
 Alternatively, you can run the services natively:
@@ -137,6 +127,26 @@ bun run src/scripts/seed-movies.ts
 ## Environment Variables
 
 See [`.env.example`](.env.example) for all required variables with documentation.
+
+## Bot Setup Guide
+
+### 1. Discord Bot Setup
+1. Go to the [Discord Developer Portal](https://discord.com/developers/applications).
+2. Create a New Application.
+3. In **General Information**, copy your **Public Key** and add it to your `.env` as `DISCORD_PUBLIC_KEY`.
+4. In **Bot**, click "Reset Token", copy it, and add it to `.env` as `DISCORD_TOKEN`.
+5. Under **OAuth2 > URL Generator**:
+   - Check the `bot` and `applications.commands` scopes.
+   - For bot permissions, select permissions necessary for your use case (e.g., Send Messages).
+   - Use the generated URL to invite the bot to your server.
+6. Once deployed via Cloudflare Tunnel or Vercel, paste your public URL into the **Interactions Endpoint URL** field (e.g., `https://your-tunnel-url/api/interactions`).
+
+### 2. Slack Webhook Setup
+The bot can mirror certain interactions/logs to Slack.
+1. Create a Slack App in your workspace.
+2. Enable **Incoming Webhooks**.
+3. Create a new webhook for a specific channel.
+4. Copy the Webhook URL and add it to your `.env` as `SLACK_WEBHOOK_URL`.
 
 ## Deployment (Vercel)
 
