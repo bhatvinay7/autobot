@@ -149,7 +149,7 @@ async function runBotMessageAi(
   content: string,
   triggeredBy: string | null
 ): Promise<BotMessageAiResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return { enrichedContent: null, intentLabel: null };
 
   try {
@@ -168,23 +168,26 @@ Respond with JSON only (no markdown):
 }`;
 
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://api.groq.com/openai/v1/chat/completions`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 200 },
+          model: "llama3-8b-8192",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.3,
+          response_format: { type: "json_object" }
         }),
       }
     );
 
     if (!res.ok) return { enrichedContent: null, intentLabel: null };
 
-    const data = await res.json() as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
-    };
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    const data = await res.json() as any;
+    const text = data.choices?.[0]?.message?.content ?? "";
     const cleaned = text.replace(/```json\n?|\n?```/g, "").trim();
     const parsed = JSON.parse(cleaned) as {
       intentLabel?: string;
