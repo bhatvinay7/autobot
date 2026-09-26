@@ -69,22 +69,7 @@ services:
           memory: 128M
  
 
-  monitor:
-    build:
-      context: .
-      dockerfile: apps/monitor/Dockerfile
-    ports:
-      - "3003:3003"
-    env_file:
-      - apps/monitor/.env
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.1'
-          memory: 128M
+
   tunnel:
     image: cloudflare/cloudflared:latest
     command: tunnel --no-autoupdate run

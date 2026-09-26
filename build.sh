@@ -2,12 +2,12 @@
 # build.sh — Sequentially build Docker images for all apps in the monorepo.
 # Usage:  ./build.sh [--tag-prefix <prefix>] [--app <name>]
 #   --tag-prefix  Image tag prefix (default: "automate")
-#   --app         Build only one app: bot | dashboard | ingestion | monitor
+#   --app         Build only one app: bot | dashboard | ingestion
 
 set -euo pipefail
 
 # ─── Config ────────────────────────────────────────────────────────────────────
-APPS=("bot" "dashboard" "ingestion" "monitor")
+APPS=("bot" "dashboard" "ingestion")
 TAG_PREFIX="automate"
 ONLY_APP=""
 

@@ -31,8 +31,7 @@ automate/
 ├── apps/
 │   ├── ingestion/     # Discord interactions endpoint
 │   ├── bot/           # Queue consumer + fanout worker
-│   ├── dashboard/     # Admin web UI
-│   └── monitor/       # Health checks
+│   └── dashboard/     # Admin web UI
 └── packages/
     ├── types/         # Shared TypeScript types (no `any`)
     ├── db/            # Prisma 6.6 + Neon Postgres client
@@ -61,7 +60,7 @@ cp .env.example .env
 
 ### Running Locally (Docker Compose)
 
-The easiest way to run the entire stack locally is using Docker Compose. This spins up Redis and all 4 Next.js services automatically.
+The easiest way to run the entire stack locally is using Docker Compose. This spins up Redis and all 3 Next.js/Express services automatically.
 
 ```bash
 docker-compose up --build
@@ -71,7 +70,6 @@ Services will start at:
 - **Dashboard**: http://localhost:3000
 - **Ingestion**: http://localhost:3001/api/interactions
 - **Bot Worker**: http://localhost:3002/api/worker
-- **Monitor**: http://localhost:3003/api/health
 
 ### Running Locally with Cloudflare Tunnel
 
@@ -150,7 +148,7 @@ The bot can mirror certain interactions/logs to Slack.
 
 ## Deployment (Vercel)
 
-This monorepo uses Vercel for hosting. Because some apps are standard Express servers (`bot`, `ingestion`, `api`) and others are Next.js (`dashboard`, `monitor`), they require different deployment strategies.
+This monorepo uses Vercel for hosting. Because some apps are standard Express servers (`bot`, `ingestion`, `api`) and others are Next.js (`dashboard`), they require different deployment strategies.
 
 **Crucial Deployment Settings for Express Apps (Docker/Container):**
 When deploying `apps/bot`, `apps/ingestion`, or `apps/api` to Vercel using the "Container" option, you MUST:
@@ -162,7 +160,6 @@ When deploying `apps/bot`, `apps/ingestion`, or `apps/api` to Vercel using the "
 | App | Type | Vercel Root Directory | Vercel Framework Preset |
 |---|---|---|---|
 | `dashboard` | Next.js | `apps/dashboard` | Next.js |
-| `monitor` | Next.js | `apps/monitor` | Next.js |
 | `api` | Express | `/` (repo root) | Docker/Container (`apps/api/Dockerfile`) |
 | `bot` | Express | `/` (repo root) | Docker/Container (`apps/bot/Dockerfile`) |
 | `ingestion` | Express | `/` (repo root) | Docker/Container (`apps/ingestion/Dockerfile`) |
