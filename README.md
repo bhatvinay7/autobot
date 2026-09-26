@@ -30,6 +30,14 @@ flowchart TD
     Dashboard -->|SSE Updates| Admin([Admin User])
 ```
 
+### Detailed Flow
+
+The interaction is sent through a Discord HTTPS endpoint, which is immediately acknowledged using a deferred message. This ensures a longer lifespan for the interaction token and prevents timeouts. The event is then fanned out to independent Redis worker-based consumers: one logs the data to a database, one sends notifications to Slack, and one processes the core bot logic.
+
+While the architecture supports an optional serverless (e.g., AWS Lambda) deployment, it is currently deployed as a server-based solution.
+
+This project serves as a small prototype for a fertilizer recommending bot. It features a vector database populated with test data and includes the entire end-to-end processing pipeline.
+
 ## Monorepo Structure
 
 ```
