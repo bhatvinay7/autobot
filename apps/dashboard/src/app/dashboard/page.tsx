@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+interface CommandOption {
+  name: string;
+  type: number;
+  value?: string | number | boolean;
+}
+
 interface Action {
   id: string;
   type: string;
@@ -21,6 +27,7 @@ interface Interaction {
   userId: string;
   username: string;
   commandName: string;
+  commandOptions?: CommandOption[];
   status: string;
   receivedAt: string;
   processedAt: string | null;
@@ -121,6 +128,7 @@ export default function DashboardPage() {
             userId: l.payload.userId,
             username: l.payload.username,
             commandName: l.payload.commandName,
+            commandOptions: l.payload.commandOptions,
             status: l.result.error ? "FAILED" : "PROCESSED",
             receivedAt: l.payload.receivedAt,
             processedAt: l.timestamp,
@@ -142,6 +150,7 @@ export default function DashboardPage() {
             userId: l.payload.userId,
             username: l.payload.username,
             commandName: l.payload.commandName,
+            commandOptions: l.payload.commandOptions,
             status: l.result.error ? "FAILED" : "PROCESSED",
             receivedAt: l.payload.receivedAt,
             processedAt: l.timestamp,
@@ -316,6 +325,18 @@ export default function DashboardPage() {
                                     )}
                                   </div>
                                 ))}
+                                {item.commandOptions && item.commandOptions.length > 0 && (
+                                  <div style={{ marginTop: 8, background: "var(--bg-card)", padding: "12px", borderRadius: 6 }}>
+                                    <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: 8 }}>
+                                      COMMAND OPTIONS (PROMPT):
+                                    </div>
+                                    {item.commandOptions.map((opt: CommandOption, i: number) => (
+                                      <div key={i} style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", color: "var(--text-primary)" }}>
+                                        <span style={{ color: "var(--accent)" }}>{opt.name}</span>: {opt.value?.toString() ?? "N/A"}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             </td>
                           </tr>

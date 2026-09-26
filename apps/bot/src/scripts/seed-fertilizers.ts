@@ -38,7 +38,7 @@ async function seed() {
   console.log("Starting seeding process...");
   
   for (let i = 0; i < fertilizers.length; i++) {
-    const f = fertilizers[i];
+    const f = fertilizers[i]!;
     
     // 1. Save to Database
     const dbRecord = await prisma.fertilizer.create({
@@ -52,12 +52,12 @@ async function seed() {
       }
     });
 
-    console.log(\`Saved \${f.name} to Postgres DB (ID: \${dbRecord.id})\`);
+    console.log(`Saved ${f.name} to Postgres DB (ID: ${dbRecord.id})`);
 
     // 2. Save to Upstash Vector DB
     // The "data" field is what gets vectorized by Upstash automatically if you configured an embedding model.
     // The metadata contains the real data so you don't even need to query Postgres again if you don't want to.
-    const textToEmbed = \`\${f.name}. \${f.description}. Used for: \${f.mainUsage}. Functionality: \${f.mainFunctionality}.\`;
+    const textToEmbed = `${f.name}. ${f.description}. Used for: ${f.mainUsage}. Functionality: ${f.mainFunctionality}.`;
     
     await index.upsert({
       id: dbRecord.id, // Keep IDs synced between Postgres and Upstash!
@@ -73,7 +73,7 @@ async function seed() {
       }
     });
 
-    console.log(\`Saved \${f.name} to Upstash Vector DB\`);
+    console.log(`Saved ${f.name} to Upstash Vector DB`);
   }
 
   console.log("Seeding complete! 20 fertilizers added.");

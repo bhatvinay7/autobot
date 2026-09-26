@@ -119,13 +119,13 @@ node -e "require('bcryptjs').hash('yourpassword', 12).then(h => console.log(h))"
 # VALUES (gen_random_uuid(), 'admin@example.com', '<hash>', now());
 ```
 
-### Seed Redis with Mock Data
+### Seed Postgres & Vector DB with Mock Data
 
-The AI relies on context data stored in Redis. You must run the seed script to populate `mock_movies_context`:
+The AI relies on context data stored in the database. You must run the seed script to populate fertilizer factory data:
 
 ```bash
 cd apps/bot
-bun run src/scripts/seed-movies.ts
+bun run src/scripts/seed-fertilizers.ts
 ```
 
 ## Environment Variables
