@@ -42,11 +42,13 @@ app.post("/api/interactions", async (req: Request, res: Response) => {
     return;
   }
 
-  if (interaction.type === 2) {
+  if (interaction.type === 2 || interaction.type === 3) {
     const { id: interactionId, token, data, guild_id, channel_id, member, user } = interaction;
     
     // 1. Acknowledge immediately to avoid Discord's 3-second timeout
-    res.json({ type: 5 });
+    // Type 5: deferred channel message (for commands)
+    // Type 6: deferred update message (for buttons)
+    res.json({ type: interaction.type === 3 ? 6 : 5 });
 
     // 2. Check for duplicate *after* acknowledging
     const duplicate = await isDuplicate(interactionId);
@@ -69,7 +71,7 @@ app.post("/api/interactions", async (req: Request, res: Response) => {
           channelId: channel_id ?? null,
           userId: actor?.id ?? "unknown",
           username: actor?.username ?? "unknown",
-          commandName: data?.name ?? "unknown",
+          commandName: data?.name ?? data?.custom_id ?? "unknown",
           commandOptions: data?.options ?? [],
           token,
           applicationId: interaction.application_id,

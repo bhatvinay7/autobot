@@ -15,6 +15,7 @@ import {
   processSlackMirror, 
   processDbWrite 
 } from "./lib/interaction-processor";
+import { processBotMessageEvent } from "./lib/bot-message-processor";
 
 const app = express();
 app.use(cors());
@@ -85,6 +86,9 @@ app.post("/api/worker", async (req: Request, res: Response) => {
                       await redis.ltrim("dashboard:logs:latest", 0, 99);
                       await redis.publish("dashboard:logs:pubsub", logEntry);
                     }
+                  } else if (event.kind === "BOT_MESSAGE") {
+                    await processBotMessageEvent(event as BotMessageQueueEvent, writer);
+                    pendingCountRef.count = writer.pendingCount;
                   }
                 }
                 await streamAck(stream, entry.streamId, suffix, "cg-bot-processor");

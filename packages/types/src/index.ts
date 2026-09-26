@@ -25,10 +25,12 @@ export interface DiscordCommandOption {
 }
 
 export interface DiscordApplicationCommandData {
-  id: string;
-  name: string;
-  type: number;
+  id?: string;
+  name?: string;
+  type?: number;
   options?: DiscordCommandOption[];
+  custom_id?: string;
+  component_type?: number;
 }
 
 export interface DiscordInteraction {
