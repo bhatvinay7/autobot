@@ -73,7 +73,7 @@ export default function DashboardPage() {
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"log" | "config">("log");
+  const [activeTab, setActiveTab] = useState<"log" | "config" | "fertilizer">("log");
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -200,6 +200,14 @@ export default function DashboardPage() {
           >
             <span className="nav-dot" />
             Command Config
+          </button>
+          <button
+            id="nav-fertilizer"
+            className={`nav-item ${activeTab === "fertilizer" ? "active" : ""}`}
+            onClick={() => setActiveTab("fertilizer")}
+          >
+            <span className="nav-dot" />
+            Fertilizers
           </button>
         </nav>
 
@@ -347,6 +355,7 @@ export default function DashboardPage() {
         )}
 
         {activeTab === "config" && <CommandConfigPanel />}
+        {activeTab === "fertilizer" && <FertilizerPanel />}
       </main>
     </div>
   );
@@ -486,3 +495,145 @@ function CommandConfigPanel() {
     </>
   );
 }
+
+// ─── Fertilizer Panel ─────────────────────────────────────────────────────────
+
+interface Fertilizer {
+  id: string;
+  name: string;
+  price: number;
+  description: string | null;
+  mainUsage: string | null;
+  mainFunctionality: string | null;
+  imageUrl: string | null;
+}
+
+function FertilizerPanel() {
+  const [fertilizers, setFertilizers] = useState<Fertilizer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState<Fertilizer | null>(null);
+  const [formData, setFormData] = useState({ name: "", price: "", description: "", mainUsage: "", mainFunctionality: "", imageUrl: "" });
+
+  const fetchFertilizers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/fertilizers`);
+      const json = await res.json();
+      if (json.success) setFertilizers(json.data);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchFertilizers();
+  }, [fetchFertilizers]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const url = isEditing ? `${API_BASE}/api/fertilizers/${isEditing.id}` : `${API_BASE}/api/fertilizers`;
+    const method = isEditing ? "PUT" : "POST";
+    
+    await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...formData, price: Number(formData.price) }),
+    });
+    
+    setFormData({ name: "", price: "", description: "", mainUsage: "", mainFunctionality: "", imageUrl: "" });
+    setIsEditing(null);
+    void fetchFertilizers();
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure?")) return;
+    await fetch(`${API_BASE}/api/fertilizers/${id}`, { method: "DELETE" });
+    void fetchFertilizers();
+  };
+
+  const handleEdit = (f: Fertilizer) => {
+    setIsEditing(f);
+    setFormData({
+      name: f.name,
+      price: String(f.price),
+      description: f.description || "",
+      mainUsage: f.mainUsage || "",
+      mainFunctionality: f.mainFunctionality || "",
+      imageUrl: f.imageUrl || "",
+    });
+  };
+
+  return (
+    <>
+      <div className="page-header animate-in">
+        <h1 className="page-title">Fertilizer Factory Data</h1>
+        <p className="page-subtitle">Manage chemical factory data and products</p>
+      </div>
+
+      <div className="card animate-in" style={{ marginBottom: 32 }}>
+        <h2 className="section-title" style={{ marginTop: 0 }}>{isEditing ? "Edit Fertilizer" : "Add New Fertilizer"}</h2>
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", gap: 12 }}>
+            <input required className="input" placeholder="Name" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} style={{ flex: 1 }} />
+            <input required type="number" step="0.01" className="input" placeholder="Price ($)" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} style={{ width: 120 }} />
+          </div>
+          <input className="input" placeholder="Description" value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} />
+          <input className="input" placeholder="Main Usage (e.g. Soil conditioning)" value={formData.mainUsage} onChange={(e) => setFormData({...formData, mainUsage: e.target.value})} />
+          <input className="input" placeholder="Main Functionality (e.g. Increases nitrogen)" value={formData.mainFunctionality} onChange={(e) => setFormData({...formData, mainFunctionality: e.target.value})} />
+          <input className="input" placeholder="Image URL" value={formData.imageUrl} onChange={(e) => setFormData({...formData, imageUrl: e.target.value})} />
+          
+          <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 8 }}>
+            {isEditing && (
+              <button type="button" className="btn btn-ghost" onClick={() => { setIsEditing(null); setFormData({ name: "", price: "", description: "", mainUsage: "", mainFunctionality: "", imageUrl: "" }); }}>
+                Cancel
+              </button>
+            )}
+            <button type="submit" className="btn btn-primary">
+              {isEditing ? "Update" : "Save"}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div className="table-wrap animate-in animate-in-delay-1">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Price</th>
+              <th>Description</th>
+              <th>Usage</th>
+              <th>Functionality</th>
+              <th style={{ width: 120 }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--text-muted)" }}>Loading...</td></tr>
+            ) : fertilizers.length === 0 ? (
+              <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--text-muted)" }}>No data available.</td></tr>
+            ) : fertilizers.map(f => (
+              <tr key={f.id}>
+                <td className="primary">
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    {f.imageUrl && <img src={f.imageUrl} alt={f.name} style={{ width: 32, height: 32, borderRadius: 4, objectFit: "cover" }} />}
+                    {f.name}
+                  </div>
+                </td>
+                <td>${f.price.toFixed(2)}</td>
+                <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.description}</td>
+                <td>{f.mainUsage}</td>
+                <td>{f.mainFunctionality}</td>
+                <td>
+                  <button className="btn btn-ghost" style={{ padding: "4px 8px", minWidth: "auto", minHeight: "auto", height: 28, fontSize: "0.75rem" }} onClick={() => handleEdit(f)}>Edit</button>
+                  <button className="btn btn-ghost" style={{ padding: "4px 8px", minWidth: "auto", minHeight: "auto", height: 28, fontSize: "0.75rem", color: "var(--red)" }} onClick={() => handleDelete(f.id)}>Delete</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+

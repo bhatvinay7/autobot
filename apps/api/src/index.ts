@@ -197,6 +197,70 @@ app.get("/api/interactions", async (req: Request, res: Response) => {
 });
 
 // ============================
+// Fertilizers CRUD Routes
+// ============================
+app.get("/api/fertilizers", async (req: Request, res: Response) => {
+  try {
+    const fertilizers = await prisma.fertilizer.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+    res.json({ success: true, data: fertilizers });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Failed to fetch fertilizers" });
+  }
+});
+
+app.post("/api/fertilizers", async (req: Request, res: Response) => {
+  try {
+    const { name, price, description, mainUsage, mainFunctionality, imageUrl } = req.body;
+    const fertilizer = await prisma.fertilizer.create({
+      data: {
+        name,
+        price: Number(price),
+        description,
+        mainUsage,
+        mainFunctionality,
+        imageUrl,
+      },
+    });
+    res.json({ success: true, data: fertilizer });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Failed to create fertilizer" });
+  }
+});
+
+app.put("/api/fertilizers/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, price, description, mainUsage, mainFunctionality, imageUrl } = req.body;
+    const fertilizer = await prisma.fertilizer.update({
+      where: { id },
+      data: {
+        name,
+        price: Number(price),
+        description,
+        mainUsage,
+        mainFunctionality,
+        imageUrl,
+      },
+    });
+    res.json({ success: true, data: fertilizer });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Failed to update fertilizer" });
+  }
+});
+
+app.delete("/api/fertilizers/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await prisma.fertilizer.delete({ where: { id } });
+    res.json({ success: true, data: { id } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Failed to delete fertilizer" });
+  }
+});
+
+// ============================
 // Dashboard Logs SSE Route
 // ============================
 app.get("/api/logs/stream", async (req: Request, res: Response) => {

@@ -14,6 +14,7 @@
     "@repo/db": "*",
     "@repo/redis": "*",
     "@repo/types": "*",
+    "@upstash/vector": "^1.2.3",
     "cors": "^2.8.6",
     "dotenv": "^18.0.3",
     "express": "^5.2.1"

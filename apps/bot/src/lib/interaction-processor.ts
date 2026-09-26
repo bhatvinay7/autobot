@@ -31,6 +31,7 @@ import { withRetry } from "./retry";
 import { sendDiscordFollowUp, sendDiscordChannelMessage } from "./discord";
 import { sendSlackNotification } from "./slack";
 import type { BatchDbWriter } from "./batch-writer";
+import { fetchSimilarContext } from "./vector";
 
 const MAX_RETRIES = 5;
 
@@ -156,6 +157,22 @@ export async function processInteractionEvent(
       }
     }
 
+    if (aiResult.imageUrl) {
+      try {
+        await withRetry(
+          () =>
+            sendDiscordFollowUp(
+              applicationId,
+              token,
+              `🖼️ **Related Image:**\n${aiResult.imageUrl}`
+            ),
+          MAX_RETRIES
+        );
+      } catch (e: unknown) {
+        console.warn("[processor] Image Discord follow-up failed:", e instanceof Error ? e.message : e);
+      }
+    }
+
     const messageContent = `/${commandName} ${optionText}`;
     session = appendToSession(session, messageContent, aiResult.updatedSessionSummary);
     await saveSession(session);
@@ -212,6 +229,7 @@ interface AiResult {
   tags: string[];
   /** Updated rolling session summary to store back in Redis. */
   updatedSessionSummary: string | null;
+  imageUrl?: string | null;
 }
 
 /**
@@ -231,9 +249,17 @@ async function runInteractionAi(
   if (!apiKey) return { summary: null, answer: null, tags: [], updatedSessionSummary: null };
 
   try {
-    const { redis } = await import("@repo/redis");
-    const rawMockData = await redis.get("mock_movies_context");
-    const mockContextSection = rawMockData ? `\n\n[MOCK DATABASE - NEW MOVIE LINKS]\n${rawMockData}` : "";
+
+
+    const similarContexts = await fetchSimilarContext(optionText || commandName, 1);
+    let vectorContextSection = "";
+    let extractedImageUrl: string | null = null;
+    
+    if (similarContexts.length > 0) {
+       const metadata = similarContexts[0].metadata as any;
+       vectorContextSection = `\n\n[VECTOR DB MATCH]\nFound relevant factory data:\nName: ${metadata.name}\nDescription: ${metadata.description}\nUsage: ${metadata.mainUsage}\nFunctionality: ${metadata.mainFunctionality}\nPrice: $${metadata.price}\n`;
+       if (metadata.imageUrl) extractedImageUrl = metadata.imageUrl;
+    }
 
     const contextSection =
       session.contextMessages.length > 0
@@ -246,20 +272,20 @@ async function runInteractionAi(
 
     const prompt = `You are analyzing Discord slash commands for a bot dashboard.
 
-User: "${username}" (session message #${session.messageCount + 1})${summarySection}${contextSection}
+User: "${username}" (session message #${session.messageCount + 1})${summarySection}${contextSection}${vectorContextSection}
 
 Current command: "/${commandName}" with options: "${optionText}"
 
 Respond with JSON only (no markdown):
 {
   "summary": "<one sentence: what the user wants right now>",
-  "answer": "<direct helpful response to the user's prompt/question>",
+  "answer": "<direct helpful response to the user's prompt/question, incorporating any VECTOR DB MATCH data if present>",
   "tags": ["<tag1>", "<tag2>"],
   "sessionSummary": "<updated rolling summary of the whole session in one sentence>"
 }
 
 Tags must be short lowercase labels: report, status, question, action, config, urgent, followup.
-sessionSummary should incorporate context from the full session, not just this message.${mockContextSection}`;
+sessionSummary should incorporate context from the full session, not just this message.`;
 
     const res = await fetch(
       `https://api.groq.com/openai/v1/chat/completions`,
@@ -299,9 +325,10 @@ sessionSummary should incorporate context from the full session, not just this m
       answer: parsed.answer ?? null,
       tags: Array.isArray(parsed.tags) ? parsed.tags : [],
       updatedSessionSummary: parsed.sessionSummary ?? null,
+      imageUrl: extractedImageUrl,
     };
   } catch (err) {
     console.warn("[processor] AI parsing failed:", err);
-    return { summary: null, answer: null, tags: [], updatedSessionSummary: null };
+    return { summary: null, answer: null, tags: [], updatedSessionSummary: null, imageUrl: null };
   }
 }
