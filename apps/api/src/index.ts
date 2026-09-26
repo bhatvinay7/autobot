@@ -184,7 +184,7 @@ app.get("/api/interactions", async (req: Request, res: Response) => {
     prisma.interaction.findMany({
       where,
       include: { actions: true },
-      orderBy: { receivedAt: "desc" },
+      orderBy: { receivedAt: "asc" },
       skip: (page - 1) * limit,
       take: limit,
     }),
