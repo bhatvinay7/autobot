@@ -35,13 +35,13 @@ jobs:
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             # 3. Fetch latest docker-compose.prod.yml and nginx.conf from the repository
-            # Since repository is private, we pass a token to raw.githubusercontent.com or just use curl with auth
-            curl -H "Authorization: token ${{ secrets.ACCESS_TOKEN }}" \
+            # Using the GHCR_TOKEN (which we know is a valid PAT) to authenticate
+            curl -H "Authorization: token ${{ secrets.GHCR_TOKEN }}" \
                  -H "Accept: application/vnd.github.v3.raw" \
                  -o docker-compose.prod.yml \
                  https://api.github.com/repos/${{ github.repository }}/contents/docker-compose.prod.yml?ref=${{ github.ref_name }}
                  
-            curl -H "Authorization: token ${{ secrets.ACCESS_TOKEN }}" \
+            curl -H "Authorization: token ${{ secrets.GHCR_TOKEN }}" \
                  -H "Accept: application/vnd.github.v3.raw" \
                  -o nginx/nginx.conf \
                  https://api.github.com/repos/${{ github.repository }}/contents/nginx/nginx.conf?ref=${{ github.ref_name }}
