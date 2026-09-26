@@ -4,34 +4,51 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
     depends_on:
-      - dashboard
       - ingestion
       - bot
       - api
+      # - dashboard
 
   api:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/automate-api:latest
     restart: unless-stopped
     env_file:
       - .env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.4'
+          memory: 150M
 
   ingestion:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/automate-ingestion:latest
     restart: unless-stopped
     env_file:
       - .env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 150M
 
   bot:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/automate-bot:latest
     restart: unless-stopped
     env_file:
       - .env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 200M
 
-  dashboard:
-    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/automate-dashboard:latest
-    restart: unless-stopped
-    env_file:
-      - .env
+#  dashboard:
+#    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/automate-dashboard:latest
+#    restart: unless-stopped
+#    env_file:
+#      - .env

@@ -8,7 +8,8 @@ import { getStreamDepth, getDlqDepth } from "@repo/redis";
 import { createSessionToken, COOKIE_NAME, TOKEN_MAX_AGE_SECONDS } from "./auth";
 
 const app = express();
-app.use(cors({ origin: true, credentials: true }));
+const clientUrl = process.env.CLIENT_URL || "http://localhost:3000";
+app.use(cors({ origin: clientUrl, credentials: true }));
 app.use(express.json());
 
 const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
