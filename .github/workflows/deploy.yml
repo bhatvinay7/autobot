@@ -59,6 +59,9 @@ jobs:
             GROQ_API_KEY="${{ secrets.GROQ_API_KEY }}"
             APP_URL="http://bot:3002"
             CLIENT_URL="${{ secrets.CLIENT_URL }}"
+            SLACK_WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL }}"
+            JWT_SECRET="${{ secrets.JWT_SECRET }}"
+            NODE_ENV="production"
             EOF
             
             # Append GITHUB_REPOSITORY_OWNER (lowercased) outside the single-quoted EOF block
