@@ -1,0 +1,78 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Execute deployment on VM via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            # 1. Prepare directories
+            sudo mkdir -p ~/automate/nginx/certs
+            sudo chown -R $USER:$USER ~/automate
+            cd ~/automate
+
+            # 2. Authenticate with GHCR
+            # We use GHCR_TOKEN (a personal access token with package read permissions)
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # 3. Fetch latest docker-compose.prod.yml and nginx.conf from the repository
+            # Since repository is private, we pass a token to raw.githubusercontent.com or just use curl with auth
+            curl -H "Authorization: token ${{ secrets.ACCESS_TOKEN }}" \
+                 -H "Accept: application/vnd.github.v3.raw" \
+                 -o docker-compose.prod.yml \
+                 https://api.github.com/repos/${{ github.repository }}/contents/docker-compose.prod.yml?ref=${{ github.ref_name }}
+                 
+            curl -H "Authorization: token ${{ secrets.ACCESS_TOKEN }}" \
+                 -H "Accept: application/vnd.github.v3.raw" \
+                 -o nginx/nginx.conf \
+                 https://api.github.com/repos/${{ github.repository }}/contents/nginx/nginx.conf?ref=${{ github.ref_name }}
+
+            # 4. Generate .env file safely from GitHub Secrets
+            # Note: Do not echo secrets directly if you can avoid it, but this writes to the local .env securely
+            sudo cat << 'EOF' | sudo tee .env > /dev/null
+            DATABASE_URL="${{ secrets.DATABASE_URL }}"
+            REDIS_URL="${{ secrets.REDIS_URL }}"
+            DISCORD_TOKEN="${{ secrets.DISCORD_TOKEN }}"
+            DISCORD_PUBLIC_KEY="${{ secrets.DISCORD_PUBLIC_KEY }}"
+            UPSTASH_VECTOR_REST_URL="${{ secrets.UPSTASH_VECTOR_REST_URL }}"
+            UPSTASH_VECTOR_REST_TOKEN="${{ secrets.UPSTASH_VECTOR_REST_TOKEN }}"
+            NEXT_PUBLIC_API_URL="${{ secrets.NEXT_PUBLIC_API_URL }}"
+            GROQ_API_KEY="${{ secrets.GROQ_API_KEY }}"
+            APP_URL="http://bot:3002"
+            CLIENT_URL="${{ secrets.CLIENT_URL }}"
+            GITHUB_REPOSITORY_OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+            EOF
+
+            # 5. Stop running containers to free up port 80 for Certbot
+            docker compose -f docker-compose.prod.yml down || true
+
+            # 6. Issue/Renew free SSL certificates using Certbot standalone (if not already valid)
+            API_DOMAIN=$(echo "${{ secrets.NEXT_PUBLIC_API_URL }}" | sed -e 's|^[^/]*//||' -e 's|/.*$||')
+            
+            sudo docker run --rm -p 80:80 -v $(pwd)/nginx/certs:/etc/letsencrypt certbot/certbot certonly --standalone -m ${{ secrets.CERTBOT_EMAIL }} --agree-tos --no-eff-email -d $API_DOMAIN --non-interactive --keep-until-expiring
+            
+            # Symlink or copy the generated certs to a static path for Nginx to use uniformly
+            sudo cp ./nginx/certs/live/$API_DOMAIN/fullchain.pem ./nginx/certs/fullchain.pem
+            sudo cp ./nginx/certs/live/$API_DOMAIN/privkey.pem ./nginx/certs/privkey.pem
+            
+            # Ensure proper permissions for Nginx container to read certs
+            sudo chmod -R 755 ./nginx/certs
+            
+            # Inject domain into Nginx configuration
+            sudo sed -i "s/API_DOMAIN_PLACEHOLDER/$API_DOMAIN/g" nginx/nginx.conf
+
+            # 7. Wipe all old images to save space
+            docker system prune -af
+
+            # 7. Pull the latest images and start services
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d
