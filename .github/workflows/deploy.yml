@@ -59,8 +59,10 @@ jobs:
             GROQ_API_KEY="${{ secrets.GROQ_API_KEY }}"
             APP_URL="http://bot:3002"
             CLIENT_URL="${{ secrets.CLIENT_URL }}"
-            GITHUB_REPOSITORY_OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
             EOF
+            
+            # Append GITHUB_REPOSITORY_OWNER (lowercased) outside the single-quoted EOF block
+            echo "GITHUB_REPOSITORY_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" | sudo tee -a .env > /dev/null
 
             # 5. Stop running containers to free up port 80 for Certbot
             docker compose -f docker-compose.prod.yml down || true
