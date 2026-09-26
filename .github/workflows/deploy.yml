@@ -16,6 +16,15 @@ jobs:
           key: ${{ secrets.VM_SSH_KEY }}
           passphrase: ${{ secrets.VM_SSH_PASSPHRASE }}
           script: |
+            # 0. Install Docker if not present
+            if ! command -v docker &> /dev/null; then
+              echo "Docker not found. Installing..."
+              curl -fsSL https://get.docker.com -o get-docker.sh
+              sudo sh get-docker.sh
+              sudo usermod -aG docker $USER
+              echo "Docker installed successfully."
+            fi
+
             # 1. Prepare directories
             sudo mkdir -p ~/automate/nginx/certs
             sudo chown -R $USER:$USER ~/automate
